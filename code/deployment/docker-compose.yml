@@ -1,11 +1,67 @@
-version: '3.8'
-
 services:
-  # FastAPI service
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - admission-network
+
+  airflow-webserver:
+    image: apache/airflow:2.7.0
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    volumes:
+      - ./../../:/opt/airflow  # Весь проект
+      - ./../../services/airflow/dags:/opt/airflow/dags  # ✅ ПРАВИЛЬНАЯ ПАПКА DAGS
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    ports:
+      - "8080:8080"
+    command: >
+      bash -c "
+      pip install -r /opt/airflow/code/deployment/airflow_requirements.txt &&
+      airflow db init &&
+      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+      airflow webserver
+      "
+    networks:
+      - admission-network
+
+  airflow-scheduler:
+    image: apache/airflow:2.7.0
+    depends_on:
+      - postgres
+      - airflow-webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    volumes:
+      - ./../../:/opt/airflow
+      - ./../../services/airflow/dags:/opt/airflow/dags  # ✅ ПРАВИЛЬНАЯ ПАПКА DAGS
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    command: >
+      bash -c "
+      pip install -r /opt/airflow/code/deployment/airflow_requirements.txt &&
+      airflow scheduler
+      "
+    networks:
+      - admission-network
+
   api:
     build:
       context: ./api
       dockerfile: Dockerfile
+    container_name: admission-api
     ports:
       - "8000:8000"
     volumes:
@@ -15,25 +71,21 @@ services:
       - PYTHONPATH=/app
     networks:
       - admission-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # Streamlit web application
   webapp:
-    build: ./app
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: admission-app
     ports:
-      - "8506:8501"
+      - "8501:8501"
     environment:
       - API_URL=http://api:8000/predict
-    depends_on:
-      - api
     networks:
       - admission-network
-    stdin_open: true
-    tty: true
+
+volumes:
+  postgres_data:
 
 networks:
   admission-network:

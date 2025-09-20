@@ -2,12 +2,9 @@ import os
 import requests
 import streamlit as st
 
-
 API_URL = os.getenv('API_URL', 'http://api:8000/predict')
 
-
 st.title('Admission Predict')
-
 
 gre = st.number_input('Enter GRE Score:', value=300)
 
@@ -72,7 +69,8 @@ if st.button('Predict'):
         else:
             st.error(f"Ошибка API: {response.status_code} - {response.text}")
 
+
     except requests.exceptions.ConnectionError:
-        st.error("Не удалось подключиться к API. Убедитесь, что FastAPI сервер запущен на localhost:8000")
+        st.error(f"Не удалось подключиться к API. Проверьте, что сервер доступен по адресу {API_URL}")
     except Exception as e:
         st.error(f"Произошла ошибка: {str(e)}")
