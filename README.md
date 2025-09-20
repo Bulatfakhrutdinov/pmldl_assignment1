@@ -10,4 +10,4 @@ cd pmldl_assignment1/code/deployment
 docker compose up -d
 ```
 
-#### Open http://localhost:8506/
+#### Open http://localhost:8501
